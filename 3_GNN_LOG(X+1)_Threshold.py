@@ -252,7 +252,7 @@ def threshold_connectome(matrix, percentile=100):
 log_thresholded_connectomes = {}
 
 for subject, matrix in matched_connectomes.items():
-    # === 1. Apply 95% threshold ===
+    # === 1. Apply 75% threshold ===
     thresholded_matrix = threshold_connectome(matrix, percentile=75)
     
     # === 2. Apply log(x + 1) ===
