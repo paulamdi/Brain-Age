@@ -1,5 +1,22 @@
-
 # ADNI Data
+
+#################  IMPORT NECESSARY LIBRARIES  ################
+
+
+import os  # For handling file paths and directories
+import pandas as pd  # For working with tabular data using DataFrames
+import matplotlib.pyplot as plt  # For generating plots
+import seaborn as sns  # For enhanced visualizations of heatmaps
+import zipfile  # For reading compressed files without extracting them
+import re  # For extracting numerical IDs using regular expressions
+
+import torch
+import random
+import numpy as np
+
+import networkx as nx  # For graph-level metrics
+
+
 
 ###################### Connectomes ############################
 print("ADNI CONNECTOMES")
