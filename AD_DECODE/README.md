@@ -15,3 +15,30 @@ This script loads brain connectivity matrices (connectomes) from compressed file
 - Filters out rows with missing data and drops Alzheimer’s Disease (AD) and Mild Cognitive Impairment (MCI) subjects, keeping only healthy controls.
 - Displays a sample connectome and visualizes it using a heatmap.
 
+### GATv2_1.py
+
+This script performs brain age prediction using Graph Attention Networks (GATv2). It integrates multimodal node features (FA, MD, Volume) with clinical and structural graph metrics.
+
+- **Preprocessing:**
+  - Normalizes connectomes and applies log + threshold transformations.
+  - Extracts multimodal node features (FA, MD, Vol).
+  - Encodes demographic features (e.g., sex, genotype) and combines them with graph metrics.
+  
+- **Graph construction:**
+  - Converts each subject's connectome into a PyTorch Geometric `Data` object.
+  - Includes edge features, node features(FA, MD, Vol), and global features (metadata + graph metrics).
+  
+- **Model:**
+  - Defines a deep GATv2 model with 4 layers and residual connections.
+  - Incorporates global metadata into the final MLP for prediction.
+
+- **Training & Evaluation:**
+  - Uses 7-fold stratified cross-validation based on age bins.
+  - Repeats training multiple times per fold for stability.
+  - Implements early stopping and tracks learning curves.
+  - Calculates MAE and R² across all folds and repetitions.
+
+- **Output:**
+  - Saves model checkpoints.
+  - Plots learning curves and predicted vs real ages.
+  - Prints full performance metrics with standard deviation.
