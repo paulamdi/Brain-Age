@@ -305,12 +305,13 @@ for subject, matrix in matched_connectomes.items():
 
 
 
-# Verificar que se han transformado las matrices correctamente
-# Mostrar las primeras 5 matrices log-transformadas
+# Verify that the matrices have been transformed correctly
+# Display the first 5 log-transformed matrices
 for subject, matrix_log in list(log_thresholded_connectomes.items())[:5]:
     print(f"Log-transformed matrix for Subject {subject}:")
     print(matrix_log)
-    print()  # Imprimir una línea vacía para separar
+    print()  
+
 
 
 
