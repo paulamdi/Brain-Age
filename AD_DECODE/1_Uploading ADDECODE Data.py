@@ -135,7 +135,7 @@ plt.show()
 
 #Remove AD and MCI
 
-# === Print risk distribution if available ===
+# === Print original risk distribution if available ===
 if "Risk" in df_matched_connectomes.columns:
     risk_filled = df_matched_connectomes["Risk"].fillna("NoRisk").replace(r'^\s*$', "NoRisk", regex=True)
     print("Risk distribution in matched data:")
@@ -165,3 +165,24 @@ else:
     print("No 'Risk' column found.")
 print()
 
+
+# === Filter connectomes to include only those from non-AD/MCI subjects ===
+matched_connectomes_healthy_addecode = {
+    row["DWI_fixed"]: matched_connectomes[row["DWI_fixed"]]
+    for _, row in df_matched_addecode_healthy.iterrows()
+}
+
+# === Confirmation of subject count
+print(f"Connectomes selected (excluding AD/MCI): {len(matched_connectomes_healthy_addecode)}")
+
+
+
+# df_matched_connectomes:
+# → Cleaned metadata that has a valid connectome
+# → Includes AD/MCI
+
+# matched_connectomes:
+# → Dictionary of connectomes that have valid metadata
+# → Key: subject ID
+# → Value: connectome matrix
+# → Includes AD/MCI
