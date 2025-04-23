@@ -5,6 +5,7 @@ This folder contains scripts for working with the AD-DECODE dataset
 ## Scripts
 
 ### 1_Uploading ADDECODE Data.py
+path: /home/bas/Desktop/Paula/1_Uploading ADDECODE Data.py
 
 This script loads brain connectivity matrices (connectomes) from compressed files, processes the associated metadata, and filters out non-healthy subjects.
 
@@ -16,6 +17,7 @@ This script loads brain connectivity matrices (connectomes) from compressed file
 - Displays a sample connectome and visualizes it using a heatmap.
 
 ### GATv2_1.py
+path: /home/bas/Desktop/Paula/GATS/Better/3_GATv2 using less metadataBetter data processing.py
 
 This script performs brain age prediction using Graph Attention Networks (GATv2). It integrates multimodal node features (FA, MD, Volume) with clinical and structural graph metrics.
 
