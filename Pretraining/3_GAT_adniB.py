@@ -1061,17 +1061,3 @@ plt.show()
 
 
 
-model.eval()
-all_preds = []
-all_labels = []
-
-with torch.no_grad():
-    for data in train_loader:
-        data = data.to(device)
-        pred = model(data).view(-1)
-        all_preds.extend(pred.cpu().tolist())
-        all_labels.extend(data.y.cpu().tolist())
-
-mae = mean_absolute_error(all_labels, all_preds)
-print(f"MAE en entrenamiento completo: {mae:.2f}")
-
