@@ -1,4 +1,4 @@
-#  A) Freeze GNN Layers (Feature Extraction) 
+# Freeze GNN Layers (Feature Extraction) 
 
 #freeze the pre-trained layers of your Graph Neural Network (GNN), 
 #such as the GATv2 layers and BatchNorm layers. 
