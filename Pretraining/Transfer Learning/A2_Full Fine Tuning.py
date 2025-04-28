@@ -1,4 +1,4 @@
-# B) Fine-Tune All Layers (Full Fine-Tuning) 
+# Fine-Tune All Layers (Full Fine-Tuning) 
 
 #unfreeze all layers of the pre-trained model, 
 #allowing their weights to be updated during training on the target dataset. 
