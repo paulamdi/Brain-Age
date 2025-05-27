@@ -252,3 +252,31 @@ Performs **linear regressions** between Brain Age Gap (BAG / cBAG) and **cogniti
 
 
 
+### 6.0 BAG vs. Hippocampal Volume 
+
+This script investigates the relationship between Brain Age Gap (BAG) and hippocampal volume using regional structural MRI data.
+
+
+The script generates **4 regression plots**:
+
+1. Left Hippocampus (z-scored relative volume) ~ BAG  
+2. Right Hippocampus (z-scored relative volume) ~ BAG  
+3. Left Hippocampus (z-scored relative volume) ~ cBAG  
+4. Right Hippocampus (z-scored relative volume) ~ cBAG
+
+Each plot includes:
+- One dot per subject
+- A linear regression line
+- Annotated values for:
+  - R² (explained variance)
+  - p-value
+  - β (regression slope)
+
+These plots visually test whether accelerated brain aging (BAG > 0) is associated with lower hippocampal volume.
+
+#### 📄 Additional output
+A CSV file `regression_BAG_vs_Rel_z_hippocampus.csv` with regression stats (R², p, β) for each comparison.
+
+
+
+
