@@ -274,7 +274,7 @@ Each plot includes:
 
 These plots visually test whether accelerated brain aging (BAG > 0) is associated with lower hippocampal volume.
 
-## Additional output
+Additional output
 A CSV file `regression_BAG_vs_Rel_z_hippocampus.csv` with regression stats (R², p, β) for each comparison.
 
 
