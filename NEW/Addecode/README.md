@@ -274,9 +274,26 @@ Each plot includes:
 
 These plots visually test whether accelerated brain aging (BAG > 0) is associated with lower hippocampal volume.
 
-#### 📄 Additional output
+## Additional output
 A CSV file `regression_BAG_vs_Rel_z_hippocampus.csv` with regression stats (R², p, β) for each comparison.
 
+
+### 6.1 BAG vs. Hippocampal Volume (outlier-robust version)
+This script replicates the analysis described in Section 6.0 but includes automatic outlier removal to improve regression robustness.
+
+It investigates the relationship between Brain Age Gap (BAG / cBAG) and z-scored relative hippocampal volume, using structural MRI data.
+
+Main difference:
+Subjects with extreme values are excluded before regression:
+
+|BAG| > 20
+
+|Hippocampal volume z-score| > 3
+
+This helps reduce the influence of outliers on statistical results.
+
+### 6.2 BAG vs volume loop
+The same as previous script but uses a loop to be able to anlyse more brain regions
 
 
 
