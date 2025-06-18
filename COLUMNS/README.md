@@ -103,11 +103,11 @@ After cross-validation, a final model is trained on **all healthy + familial-ris
 
 
 # 2_ Apply pretrained model on all healthy to all risk subjects.
--Get age, predicted age, BAG and cBAG
--Plot BAG and cBAG vs chronological age
--Violin plots-> BAG and cBAG vs Risk group, genotype and E4+/E4-
--*To do statistical tests
+- Get age, predicted age, BAG and cBAG
+- Plot BAG and cBAG vs chronological age
+- Violin plots-> BAG and cBAG vs Risk group, genotype and E4+/E4-
+- *To do statistical tests
 
 # 3_Metrics binary
--Compute AUC, Recall, F1Score, Precission, accuracy, ROC curve
--> 0 and best youden th
+- Compute AUC, Recall, F1Score, Precission, accuracy, ROC curve
+- >  0 and best youden th
