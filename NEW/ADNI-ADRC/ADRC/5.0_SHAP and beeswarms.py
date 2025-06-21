@@ -1,8 +1,17 @@
+#SHAP and BEESWARMS global features
+
+
+#!Same Normalization with only healthy , avoid dat leackage
+
+# Normalize graph metrics using z-scores computed only from "NoRisk" + "Familial" subjects (healthy-like group)
+# This avoids data leakage from at-risk subjects (e.g., AD/MCI) during model training or inference
+# All subjects are normalized using the mean and std from the healthy-like reference group
+
+
+# LOAD ALL DATA INCLUDING UNHELATHY
+
 #ADRC DTI fmri 2 channels bimodal 
 #with rmse
-#With biomarkers
-
-
 import os
 import pandas as pd
 import numpy as np
@@ -140,44 +149,18 @@ print()
 
 
 
-##########################################
-# FILTER TO NON-DEMENTED SUBJECTS (DEMENTED ≠ 1)
-##########################################
+#df_matched_adrc
+#adrc_dti_connectomes_matched
+#adrc_fmri_connectomes_matched 
 
-# Step 1: Keep only non-demented rows from the combined metadata (DTI + fMRI + metadata)
-df_healthy_adrc = df_matched_adrc[
+
+# === Define healthy-like subjects: non-demented (DEMENTED != 1) and no clinical diagnosis
+healthy_like_ids = set(df_matched_adrc[
     (df_matched_adrc["DEMENTED"] != 1) | (df_matched_adrc["DEMENTED"].isna())
-].copy()
+]["PTID"])
 
-# Step 2: Get IDs of non-demented subjects
-healthy_subject_ids = df_healthy_adrc["PTID"].tolist()
-
-# Step 3: Filter connectomes (DTI and fMRI) to include only non-demented subjects
-adrc_dti_connectomes_healthy = {
-    sid: adrc_dti_connectomes_matched[sid]
-    for sid in healthy_subject_ids if sid in adrc_dti_connectomes_matched
-}
-
-adrc_fmri_connectomes_healthy = {
-    sid: adrc_fmri_connectomes_matched[sid]
-    for sid in healthy_subject_ids if sid in adrc_fmri_connectomes_matched
-}
-
-# Step 4: Print summary
-print(f" Number of non-demented subjects: {len(healthy_subject_ids)}")
-print(f" DTI connectomes available (non-demented): {len(adrc_dti_connectomes_healthy)}")
-print(f" fMRI connectomes available (non-demented): {len(adrc_fmri_connectomes_healthy)}")
-print()
-
-
-
-
-# df_healthy_adrc_dti -> dataframe healthy
-
-# adrc_dti_connectomes_healthy -> dic connectomes helathy
-# adrc_fmri_connectomes_healthy
-
-
+# === All valid subjects with connectomes and metadata (for inference)
+valid_subjects = set(df_matched_adrc["PTID"])
 
 
 
@@ -185,15 +168,12 @@ print()
 # FA, VOLUME
 
 
-
-
-
 ##### FA
 
 import torch
 
 # === Get valid subjects: healthy ADRC subjects with connectome and metadata
-valid_subjects = set(df_healthy_adrc["PTID"])
+valid_subjects = set(df_matched_adrc["PTID"])
 
 
 
@@ -271,23 +251,20 @@ print("Feature preview:\n", multimodal_features_dict[first_subj][:5])  # print f
 
 
 
+# === Normalize node features using only NoRisk + Familial
+def normalize_multimodal_nodewise(feature_dict, healthy_like_ids):
+    # Only use healthy-like tensors for mean/std
+    healthy_tensors = [v for k, v in feature_dict.items() if k in healthy_like_ids]
+    all_features = torch.stack(healthy_tensors)  # shape: [N_subjects, 84, 2]
+    
+    means = all_features.mean(dim=0)  # [84, 2]
+    stds = all_features.std(dim=0) + 1e-8
 
-
-# === Normalize node features (across subjects, per node+modality) ===
-def normalize_multimodal_nodewise(feature_dict):
-    all_features = torch.stack(list(feature_dict.values()))  # shape: [N_subjects, 84, 2]
-    means = all_features.mean(dim=0)  # shape: [84, 2]
-    stds = all_features.std(dim=0) + 1e-8  # shape: [84, 2] to avoid div by zero
+    # Apply normalization to all subjects using healthy stats
     return {subj: (features - means) / stds for subj, features in feature_dict.items()}
 
-normalized_node_features_dict = normalize_multimodal_nodewise(multimodal_features_dict)
-
-print(f" Node features normalized. Example shape: {list(normalized_node_features_dict.values())[0].shape}")
-
-
-
-
-
+# Apply
+normalized_node_features_dict = normalize_multimodal_nodewise(multimodal_features_dict, healthy_like_ids)
 
 
 
@@ -317,14 +294,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # === Select subject to visualize ===
-subject_id = list(adrc_dti_connectomes_healthy.keys())[0]
+subject_id = list(adrc_dti_connectomes_matched.keys())[0]
 
 # === Retrieve DTI and fMRI matrices (raw) ===
-dti_matrix = adrc_dti_connectomes_healthy[subject_id]
-fmri_matrix = adrc_fmri_connectomes_healthy[subject_id]
+dti_matrix = adrc_dti_connectomes_matched[subject_id]
+fmri_matrix = adrc_fmri_connectomes_matched[subject_id]
 
 # === Retrieve age from metadata ===
-age = df_healthy_adrc[df_healthy_adrc["PTID"] == subject_id]["SUBJECT_AGE_SCREEN"].values[0]
+age = df_matched_adrc[df_matched_adrc["PTID"] == subject_id]["SUBJECT_AGE_SCREEN"].values[0]
 
 # === Plot side-by-side heatmaps (DTI + fMRI raw) ===
 plt.figure(figsize=(14, 6))
@@ -377,14 +354,14 @@ def threshold_connectome(matrix, percentile=95):
 #DTI 
 
 # === Output dictionary ===
-log_thresholded_connectomes_adrc_dti_healthy = {}
+log_thresholded_connectomes_adrc_dti = {}
 
 # === Track issues ===
 invalid_shape_ids = []
 failed_processing_ids = []
 
 # === Apply to healthy subjects ===
-for subject_id, matrix in adrc_dti_connectomes_healthy.items():
+for subject_id, matrix in adrc_dti_connectomes_matched.items():
     try:
         # Check shape (e.g., 84x84)
         if matrix.shape != (84, 84):
@@ -394,7 +371,7 @@ for subject_id, matrix in adrc_dti_connectomes_healthy.items():
         # Apply threshold and log1p
         thresholded = threshold_connectome(matrix, percentile=95)
         log_matrix = np.log1p(thresholded)
-        log_thresholded_connectomes_adrc_dti_healthy[subject_id] = log_matrix
+        log_thresholded_connectomes_adrc_dti[subject_id] = log_matrix
 
     except Exception as e:
         failed_processing_ids.append(subject_id)
@@ -402,7 +379,7 @@ for subject_id, matrix in adrc_dti_connectomes_healthy.items():
 
 # === Summary ===
 
-print(f" Total healthy DTI connectomes processed (threshold + log): {len(log_thresholded_connectomes_adrc_dti_healthy)}")
+print(f" Total healthy DTI connectomes processed (threshold + log): {len(log_thresholded_connectomes_adrc_dti)}")
 
 
 ### log_thresholded_connectomes_adrc_dti_healthy = {}  -> dic Only healthy th and log connectomes dti adrc
@@ -413,14 +390,14 @@ print(f" Total healthy DTI connectomes processed (threshold + log): {len(log_thr
 #fMRI (NO LOG NEGATIVES...)
 
 # === Output dictionary ===
-log_thresholded_connectomes_adrc_fmri_healthy = {}
+log_thresholded_connectomes_adrc_fmri = {}
 
 # === Track issues ===
 invalid_shape_ids_fmri = []
 failed_processing_ids_fmri = []
 
 # === Apply to healthy subjects ===
-for subject_id, matrix in adrc_fmri_connectomes_healthy.items():
+for subject_id, matrix in adrc_fmri_connectomes_matched.items():
     try:
         if matrix.shape != (84, 84):
             invalid_shape_ids_fmri.append(subject_id)
@@ -429,13 +406,13 @@ for subject_id, matrix in adrc_fmri_connectomes_healthy.items():
         # Threshold + log transform
         thresholded = threshold_connectome(matrix, percentile=95)  # or maybe 90 for fMRI
         log_matrix = np.log1p(thresholded)
-        log_thresholded_connectomes_adrc_fmri_healthy[subject_id] = log_matrix
+        log_thresholded_connectomes_adrc_fmri[subject_id] = log_matrix
 
     except Exception as e:
         failed_processing_ids_fmri.append(subject_id)
         print(f" Error processing subject {subject_id}: {e}")
 
-print(f" Total healthy fMRI connectomes processed (threshold + log): {len(log_thresholded_connectomes_adrc_fmri_healthy)}")
+print(f" Total healthy fMRI connectomes processed (threshold + log): {len(log_thresholded_connectomes_adrc_fmri)}")
 print()
 
 
@@ -446,12 +423,12 @@ print()
 plt.figure(figsize=(14, 6))
 
 plt.subplot(1, 2, 1)
-sns.heatmap(log_thresholded_connectomes_adrc_dti_healthy[subject_id],
+sns.heatmap(log_thresholded_connectomes_adrc_dti[subject_id],
             cmap="viridis", square=True, cbar=True, xticklabels=False, yticklabels=False)
 plt.title(f"DTI (Log+TH) - {subject_id} (Age {age:.1f})")
 
 plt.subplot(1, 2, 2)
-sns.heatmap(log_thresholded_connectomes_adrc_fmri_healthy[subject_id],
+sns.heatmap(log_thresholded_connectomes_adrc_fmri[subject_id],
             cmap="viridis", square=True, cbar=True, xticklabels=False, yticklabels=False)
 plt.title(f"fMRI (Log+TH) - {subject_id} (Age {age:.1f})")
 
@@ -472,25 +449,25 @@ def get_upper_values(matrix_dict):
     return np.concatenate(values)
 
 # === DTI RAW ===
-dti_raw_vals = get_upper_values(adrc_dti_connectomes_healthy)
+dti_raw_vals = get_upper_values(adrc_dti_connectomes_matched)
 print("DTI RAW")
 print(f"Min: {dti_raw_vals.min():.2f} | Max: {dti_raw_vals.max():.2f} | Mean: {dti_raw_vals.mean():.2f} | Std: {dti_raw_vals.std():.2f}")
 print()
 
 # === fMRI RAW ===
-fmri_raw_vals = get_upper_values(adrc_fmri_connectomes_healthy)
+fmri_raw_vals = get_upper_values(adrc_fmri_connectomes_matched)
 print("fMRI RAW")
 print(f"Min: {fmri_raw_vals.min():.2f} | Max: {fmri_raw_vals.max():.2f} | Mean: {fmri_raw_vals.mean():.2f} | Std: {fmri_raw_vals.std():.2f}")
 print()
 
 # === DTI LOG+TH ===
-dti_log_vals = get_upper_values(log_thresholded_connectomes_adrc_dti_healthy)
+dti_log_vals = get_upper_values(log_thresholded_connectomes_adrc_dti)
 print("DTI (Log+TH)")
 print(f"Min: {dti_log_vals.min():.2f} | Max: {dti_log_vals.max():.2f} | Mean: {dti_log_vals.mean():.2f} | Std: {dti_log_vals.std():.2f}")
 print()
 
 # === fMRI LOG+TH (if available) ===
-fmri_log_vals = get_upper_values(log_thresholded_connectomes_adrc_fmri_healthy)
+fmri_log_vals = get_upper_values(log_thresholded_connectomes_adrc_fmri)
 print("fMRI (Log+TH)")
 print(f"Min: {fmri_log_vals.min():.2f} | Max: {fmri_log_vals.max():.2f} | Mean: {fmri_log_vals.mean():.2f} | Std: {fmri_log_vals.std():.2f}")
 
@@ -534,13 +511,13 @@ def compute_local_efficiency(matrix):
 #DTI
 # === Ensure the metadata DataFrame has columns for the graph metrics ===
 # These metrics will be filled per subject using their log-transformed connectome
-df_healthy_adrc["dti_Clustering_Coeff"] = np.nan
-df_healthy_adrc["dti_Path_Length"] = np.nan
-df_healthy_adrc["dti_Global_Efficiency"] = np.nan
-df_healthy_adrc["dti_Local_Efficiency"] = np.nan
+df_matched_adrc["dti_Clustering_Coeff"] = np.nan
+df_matched_adrc["dti_Path_Length"] = np.nan
+df_matched_adrc["dti_Global_Efficiency"] = np.nan
+df_matched_adrc["dti_Local_Efficiency"] = np.nan
 
 # === Loop through each subject and compute graph metrics ===
-for subject, matrix_log in log_thresholded_connectomes_adrc_dti_healthy.items():
+for subject, matrix_log in log_thresholded_connectomes_adrc_dti.items():
     try:
         # Compute weighted clustering coefficient (averaged across nodes)
         dti_clustering = compute_clustering_coefficient(matrix_log)
@@ -555,7 +532,7 @@ for subject, matrix_log in log_thresholded_connectomes_adrc_dti_healthy.items():
         dti_local_eff = compute_local_efficiency(matrix_log)
 
         # Fill the computed values into the corresponding row in the metadata DataFrame
-        df_healthy_adrc.loc[df_healthy_adrc["PTID"] == subject, [
+        df_matched_adrc.loc[df_matched_adrc["PTID"] == subject, [
             "dti_Clustering_Coeff", "dti_Path_Length", "dti_Global_Efficiency", "dti_Local_Efficiency"
         ]] = [dti_clustering, dti_path, dti_global_eff, dti_local_eff]
 
@@ -608,13 +585,13 @@ def compute_local_efficiency_noneg(matrix):
 #FMRI (using no log no th)
 
 # === Add empty columns for fMRI graph metrics in the metadata DataFrame ===
-df_healthy_adrc["fmri_Clustering_Coeff"] = np.nan
-df_healthy_adrc["fmri_Path_Length"] = np.nan
-df_healthy_adrc["fmri_Global_Efficiency"] = np.nan
-df_healthy_adrc["fmri_Local_Efficiency"] = np.nan
+df_matched_adrc["fmri_Clustering_Coeff"] = np.nan
+df_matched_adrc["fmri_Path_Length"] = np.nan
+df_matched_adrc["fmri_Global_Efficiency"] = np.nan
+df_matched_adrc["fmri_Local_Efficiency"] = np.nan
 
 # === Loop through each subject and compute graph metrics from fMRI connectomes ===
-for subject, matrix_fmri in adrc_fmri_connectomes_healthy.items():
+for subject, matrix_fmri in adrc_fmri_connectomes_matched.items():
     try:
         # Compute weighted clustering coefficient (averaged across nodes)
         fmri_clustering = compute_clustering_coefficient(matrix_fmri)
@@ -629,7 +606,7 @@ for subject, matrix_fmri in adrc_fmri_connectomes_healthy.items():
         fmri_local_eff = compute_local_efficiency_noneg(matrix_fmri)
 
         # Fill computed metrics into the DataFrame
-        df_healthy_adrc.loc[df_healthy_adrc["PTID"] == subject, [
+        df_matched_adrc.loc[df_matched_adrc["PTID"] == subject, [
             "fmri_Clustering_Coeff", "fmri_Path_Length", "fmri_Global_Efficiency", "fmri_Local_Efficiency"
         ]] = [fmri_clustering, fmri_path, fmri_global_eff, fmri_local_eff]
 
@@ -651,11 +628,11 @@ from scipy.stats import zscore
 
 # === Encode SUBJECT_SEX directly (1 and 2) ===
 # Optional: map 1 → 0 and 2 → 1 to start from 0
-df_healthy_adrc["sex_encoded"] = df_healthy_adrc["SUBJECT_SEX"].map({1: 0, 2: 1})
+df_matched_adrc["sex_encoded"] = df_matched_adrc["SUBJECT_SEX"].map({1: 0, 2: 1})
 
 # === Encode APOE (e.g., "3/4", "4/4", "2/3") ===
 # Convert to string in case there are numbers
-df_healthy_adrc["genotype"] = LabelEncoder().fit_transform(df_healthy_adrc["APOE"].astype(str))
+df_matched_adrc["genotype"] = LabelEncoder().fit_transform(df_matched_adrc["APOE"].astype(str))
 
 
 
@@ -666,51 +643,53 @@ df_healthy_adrc["genotype"] = LabelEncoder().fit_transform(df_healthy_adrc["APOE
 biomarker_cols = ["AB40", "AB42", "TTAU", "PTAU181", "NFL", "GFAP"]
 
 
-# Step 1: Convert AB40 and AB42 to numeric (safe conversion)
-df_healthy_adrc["AB40"] = pd.to_numeric(df_healthy_adrc["AB40"], errors='coerce')
-df_healthy_adrc["AB42"] = pd.to_numeric(df_healthy_adrc["AB42"], errors='coerce')
+# Step 1: Convert AB40 and AB42 to numeric
+df_matched_adrc["AB40"] = pd.to_numeric(df_matched_adrc["AB40"], errors='coerce')
+df_matched_adrc["AB42"] = pd.to_numeric(df_matched_adrc["AB42"], errors='coerce')
 
-# Step 2: Compute the ratio safely
-df_healthy_adrc["AB_ratio"] = df_healthy_adrc["AB42"] / df_healthy_adrc["AB40"]
-df_healthy_adrc["AB_ratio"].replace([np.inf, -np.inf], np.nan, inplace=True)
+# Step 2: Compute ratio
+df_matched_adrc["AB_ratio"] = df_matched_adrc["AB42"] / df_matched_adrc["AB40"]
+df_matched_adrc["AB_ratio"].replace([np.inf, -np.inf], np.nan, inplace=True)
 
-# Include the new ratio along with existing biomarkers
+# Step 3: Include AB_ratio
 biomarker_cols = ["AB40", "AB42", "AB_ratio", "TTAU", "PTAU181", "NFL", "GFAP"]
 
+# Step 4: Compute mean/std from healthy-like only
+means = df_matched_adrc.loc[df_matched_adrc["PTID"].isin(healthy_like_ids), biomarker_cols].mean()
+stds = df_matched_adrc.loc[df_matched_adrc["PTID"].isin(healthy_like_ids), biomarker_cols].std() + 1e-8
 
-# Z-score valid values
-df_healthy_adrc[biomarker_cols] = df_healthy_adrc[biomarker_cols].apply(
-    lambda col: (col - col.mean()) / (col.std() + 1e-8)
-)
+# Step 5: Normalize all subjects using those stats
+df_matched_adrc[biomarker_cols] = (df_matched_adrc[biomarker_cols] - means) / stds
 
-# Fill NaNs with -10 (clear out-of-distribution marker)
-df_healthy_adrc[biomarker_cols] = df_healthy_adrc[biomarker_cols].fillna(-10)
-
-
-
+# Step 6: Fill missing values
+df_matched_adrc[biomarker_cols] = df_matched_adrc[biomarker_cols].fillna(-10)
 
 
 
 
 
 
+#graph metrics
 
+from scipy.stats import zscore
 
-#Nomalize graph metrics with zscore
-# === Define which columns are dti graph-level metrics ===
+# === Define which columns are DTI graph-level metrics ===
 dti_metrics = ["dti_Clustering_Coeff", "dti_Path_Length", "dti_Global_Efficiency", "dti_Local_Efficiency"]
 
-# === Apply z-score normalization across subjects ===
-df_healthy_adrc[dti_metrics] = df_healthy_adrc[dti_metrics].apply(zscore)
-
-
-
-# === Define graph metric columns for fMRI ===
-
+# === Define which columns are fMRI graph-level metrics ===
 fmri_metrics = ["fmri_Clustering_Coeff", "fmri_Path_Length", "fmri_Global_Efficiency", "fmri_Local_Efficiency"]
 
-# === Apply z-score normalization across subjects ===
-df_healthy_adrc[fmri_metrics] = df_healthy_adrc[fmri_metrics].apply(zscore)
+
+# === Compute means and stds using healthy-like only
+means_dti = df_matched_adrc.loc[df_matched_adrc["PTID"].isin(healthy_like_ids), dti_metrics].mean()
+stds_dti = df_matched_adrc.loc[df_matched_adrc["PTID"].isin(healthy_like_ids), dti_metrics].std() + 1e-8
+
+means_fmri = df_matched_adrc.loc[df_matched_adrc["PTID"].isin(healthy_like_ids), fmri_metrics].mean()
+stds_fmri = df_matched_adrc.loc[df_matched_adrc["PTID"].isin(healthy_like_ids), fmri_metrics].std() + 1e-8
+
+# === Apply z-score normalization to all subjects using those stats
+df_matched_adrc[dti_metrics] = (df_matched_adrc[dti_metrics] - means_dti) / stds_dti
+df_matched_adrc[fmri_metrics] = (df_matched_adrc[fmri_metrics] - means_fmri) / stds_fmri
 
 
 
@@ -726,7 +705,7 @@ subject_to_demographic_tensor = {
         row["sex_encoded"],
         row["genotype"]
     ], dtype=torch.float)
-    for _, row in df_healthy_adrc.iterrows()
+    for _, row in df_matched_adrc.iterrows()
 }
 
 # === DTI graph metrics tensor: [Clustering, Path Length, Global Eff., Local Eff.] ===
@@ -737,7 +716,7 @@ subject_to_dti_graphmetrics_tensor = {
         row["dti_Global_Efficiency"],
         row["dti_Local_Efficiency"]
     ], dtype=torch.float)
-    for _, row in df_healthy_adrc.iterrows()
+    for _, row in df_matched_adrc.iterrows()
 }
 
 # === fMRI graph metrics tensor: [Clustering, Path Length, Global Eff., Local Eff.] ===
@@ -748,7 +727,7 @@ subject_to_fmri_graphmetrics_tensor = {
         row["fmri_Global_Efficiency"],
         row["fmri_Local_Efficiency"]
     ], dtype=torch.float)
-    for _, row in df_healthy_adrc.iterrows()
+    for _, row in df_matched_adrc.iterrows()
 }
 
 
@@ -757,7 +736,7 @@ subject_to_fmri_graphmetrics_tensor = {
 # Step 5: Rebuild tensor dictionary
 subject_to_biomarker_tensor = {
     row["PTID"]: torch.tensor(row[biomarker_cols].values.astype(np.float32))
-    for _, row in df_healthy_adrc.iterrows()
+    for _, row in df_matched_adrc.iterrows()
 }
 
 
@@ -781,12 +760,12 @@ graph_data_list_adrc_dti = []
 
 
 # === Create mapping: subject ID → age
-subject_to_age = df_healthy_adrc.set_index("PTID")["SUBJECT_AGE_SCREEN"].to_dict()
+subject_to_age = df_matched_adrc.set_index("PTID")["SUBJECT_AGE_SCREEN"].to_dict()
 
 
 
-# === Iterate over each healthy subject's processed matrix ===
-for subject, matrix_log in log_thresholded_connectomes_adrc_dti_healthy.items():
+# === Iterate over each matched subject's processed matrix ===
+for subject, matrix_log in log_thresholded_connectomes_adrc_dti.items():
     try:
         # Skip if required components are missing
         if subject not in subject_to_demographic_tensor:
@@ -871,12 +850,12 @@ graph_data_list_adrc_fmri = []
 
 
 # === Create mapping: subject ID → age
-subject_to_age = df_healthy_adrc.set_index("PTID")["SUBJECT_AGE_SCREEN"].to_dict()
+subject_to_age = df_matched_adrc.set_index("PTID")["SUBJECT_AGE_SCREEN"].to_dict()
 
 
 
-# === Iterate over each healthy subject's processed matrix ===
-for subject, matrix_log in adrc_fmri_connectomes_healthy.items():
+# === Iterate over each matchedy subject's processed matrix ===
+for subject, matrix_log in adrc_fmri_connectomes_matched.items():
     try:
         # Skip if required components are missing
         if subject not in subject_to_demographic_tensor:
@@ -931,7 +910,7 @@ for subject, matrix_log in adrc_fmri_connectomes_healthy.items():
 
 
 
-
+#APPLY PRETRAINED MODEL
 
 
 
@@ -1077,400 +1056,175 @@ class DualGATv2_EarlyFusion(nn.Module):
 
 
 
+# === Create subject-to-graph dictionaries for all subjects (not just healthy) ===
+dti_dict_all = {g.subject_id: g for g in graph_data_list_adrc_dti}
+fmri_dict_all = {g.subject_id: g for g in graph_data_list_adrc_fmri}
+
+# === Create bimodal subject list for inference (only those with both DTI and fMRI) ===
+common_subjects_all = sorted(set(dti_dict_all) & set(fmri_dict_all))
+graph_data_list_adrc_bimodal_all = [(dti_dict_all[pid], fmri_dict_all[pid]) for pid in common_subjects_all]
 
 
 
-# Create lookup dictionaries from subject_id to graph
-dti_dict = {g.subject_id: g for g in graph_data_list_adrc_dti}
-fmri_dict = {g.subject_id: g for g in graph_data_list_adrc_fmri}
 
-# Keep only common subjects
-common_subjects = sorted(set(dti_dict.keys()) & set(fmri_dict.keys()))
-
-# Build aligned list of (DTI, fMRI) graph pairs
-graph_data_list_adrc_bimodal = [(dti_dict[pid], fmri_dict[pid]) for pid in common_subjects]
-
-print(f"Total bimodal subjects: {len(graph_data_list_adrc_bimodal)}")
-
-
-
-#collate_fn=collate_bimodal to properly batch pairs of DTI and fMRI graphs during training and evaluation. 
-#It ensures each modality is grouped separately into Batch objects for input to the model.
+# === Define custom collate function for bimodal input (DTI and fMRI graphs as separate batches) ===
+from torch_geometric.data import Batch
 
 def collate_bimodal(batch):
-    data_dti_list, data_fmri_list = zip(*batch)  # separa los pares
+    data_dti_list, data_fmri_list = zip(*batch)
     return Batch.from_data_list(data_dti_list), Batch.from_data_list(data_fmri_list)
 
 
-
-
-    
-from torch.optim import Adam
-from torch_geometric.loader import DataLoader  # Usamos el DataLoader de torch_geometric
-
-def train(model, train_loader, optimizer, criterion):
-    model.train()  # Set the model to training mode
-    total_loss = 0  # Initialize the total loss for the epoch
-
-    # Iterate through the training data loader
-    for data_dti, data_fmri in train_loader:
-        data_dti = data_dti.to(device)  # Move DTI graph to GPU
-        data_fmri = data_fmri.to(device)  # Move fMRI graph to GPU
-
-        optimizer.zero_grad()  # Clear previous gradients
-
-        # Forward pass through the model with both DTI and fMRI inputs
-        output = model(data_dti, data_fmri).view(-1)
-
-        # Compute loss using the target age (assumed same in both DTI/fMRI)-> the target, the age is the same in both
-        loss = criterion(output, data_dti.y)
-
-        loss.backward()  # Backpropagate the loss
-        optimizer.step()  # Update model weights
-
-        total_loss += loss.item()  # Accumulate batch loss
-
-    return total_loss / len(train_loader)  # Return average loss for the epoch
-
-
-
-
-def evaluate(model, test_loader, criterion):
-    model.eval()  # Set model to evaluation mode
-    total_loss = 0  # Initialize total loss
-
-    with torch.no_grad():  # Disable gradient computation
-        for data_dti, data_fmri in test_loader:
-            # Move each modality batch to the device
-            data_dti = data_dti.to(device)
-            data_fmri = data_fmri.to(device)
-
-            # Forward pass through the model
-            output = model(data_dti, data_fmri).view(-1)
-
-            # Compute loss using DTI target (same age for both modalities)
-            loss = criterion(output, data_dti.y)
-
-            total_loss += loss.item()
-
-    return total_loss / len(test_loader)
-
-
-
-
-
-import matplotlib.pyplot as plt
-from sklearn.model_selection import StratifiedKFold
-import numpy as np
-
-# Training parameters
-epochs = 300
-patience = 40
-k = 7  # Folds
-batch_size = 6
-repeats_per_fold = 10
-
-
-
-
-# Initialize loss tracking
-all_train_losses_bimodal = []
-all_test_losses_bimodal = []
-all_early_stopping_epochs_bimodal = []
-
-# Get subject IDs
-graph_subject_ids_bimodal = [pair[0].subject_id for pair in graph_data_list_adrc_bimodal]
-df_filtered = df_healthy_adrc[df_healthy_adrc["PTID"].isin(graph_subject_ids_bimodal)].copy()
-df_filtered = df_filtered.set_index("PTID").loc[graph_subject_ids_bimodal].reset_index()
-
-# Create stratification bins for age
-ages = df_filtered["SUBJECT_AGE_SCREEN"].to_numpy()
-age_bins = pd.qcut(ages, q=5, labels=False)
-skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=42)
-
-# Main cross-validation loop
-for fold, (train_idx, test_idx) in enumerate(skf.split(graph_data_list_adrc_bimodal, age_bins)):
-    print(f"\n--- Bimodal Fold {fold+1}/{k} ---")
-
-    train_data = [graph_data_list_adrc_bimodal[i] for i in train_idx]
-    test_data = [graph_data_list_adrc_bimodal[i] for i in test_idx]
-
-    fold_train_losses = []
-    fold_test_losses = []
-
-    for repeat in range(repeats_per_fold):
-        print(f'  > Repeat {repeat+1}/{repeats_per_fold}')
-        early_stop_epoch = None
-
-        seed_everything(42 + repeat)
-
-        #Dataloaders with collate_fn
-        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, collate_fn=collate_bimodal)
-        test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False, collate_fn=collate_bimodal)
-
-
-        model = DualGATv2_EarlyFusion().to(device)
-
-        optimizer = torch.optim.AdamW(model.parameters(), lr=0.002, weight_decay=1e-4)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
-        criterion = torch.nn.SmoothL1Loss(beta=1)
-
-        train_losses = []
-        test_losses = []
-        best_loss = float('inf')
-        patience_counter = 0
-
-        for epoch in range(epochs):
-            train_loss = train(model, train_loader, optimizer, criterion)
-            test_loss = evaluate(model, test_loader, criterion)
-
-            train_losses.append(train_loss)
-            test_losses.append(test_loss)
-
-            if test_loss < best_loss:
-                best_loss = test_loss
-                patience_counter = 0
-                torch.save(model.state_dict(), f"bimodal_model_fold_{fold+1}_rep_{repeat+1}.pt")
-            else:
-                patience_counter += 1
-                if patience_counter >= patience:
-                    early_stop_epoch = epoch + 1
-                    print(f"    Early stopping triggered at epoch {early_stop_epoch}.")
-                    break
-
-            scheduler.step()
-
-        # Save early stop epoch
-        if early_stop_epoch is None:
-            early_stop_epoch = epochs
-        all_early_stopping_epochs_bimodal.append((fold + 1, repeat + 1, early_stop_epoch))
-
-        fold_train_losses.append(train_losses)
-        fold_test_losses.append(test_losses)
-
-    all_train_losses_bimodal.append(fold_train_losses)
-    all_test_losses_bimodal.append(fold_test_losses)
-
-
-
-
-
-
-
-
-#################  LEARNING CURVE GRAPH (MULTIPLE REPEATS)  ################
-
-plt.figure(figsize=(10, 6))
-
-# Plot average learning curves across all repeats for each fold
-for fold in range(k):
-    for rep in range(repeats_per_fold):
-        plt.plot(all_train_losses_bimodal[fold][rep],
-                 label=f'Train Loss - Fold {fold+1} Rep {rep+1}', linestyle='dashed', alpha=0.5)
-        plt.plot(all_test_losses_bimodal[fold][rep],
-                 label=f'Test Loss - Fold {fold+1} Rep {rep+1}', alpha=0.5)
-
-plt.xlabel("Epochs")
-plt.ylabel("Smooth L1 Loss")
-plt.title("Learning Curves - Bimodal Model (All Repeats)")
-plt.legend(loc="upper right", fontsize=7)
-plt.grid(True)
-plt.tight_layout()
-plt.show()
-
-
-# ==== LEARNING CURVE PLOT (MEAN ± STD) FOR BIMODAL MODEL ====
-
-import numpy as np
+from torch_geometric.loader import DataLoader
+from sklearn.linear_model import LinearRegression
+import pandas as pd
 import matplotlib.pyplot as plt
 
-# Compute mean and std for each epoch across all folds and repeats
-avg_train_bimodal = []
-avg_test_bimodal = []
-
-for epoch in range(epochs):
-    epoch_train = []
-    epoch_test = []
-    for fold in range(k):
-        for rep in range(repeats_per_fold):
-            if epoch < len(all_train_losses_bimodal[fold][rep]):
-                epoch_train.append(all_train_losses_bimodal[fold][rep][epoch])
-                epoch_test.append(all_test_losses_bimodal[fold][rep][epoch])
-    avg_train_bimodal.append((np.mean(epoch_train), np.std(epoch_train)))
-    avg_test_bimodal.append((np.mean(epoch_test), np.std(epoch_test)))
-
-# Unpack into arrays
-train_mean, train_std = zip(*avg_train_bimodal)
-test_mean, test_std = zip(*avg_test_bimodal)
-
-# Plot
-plt.figure(figsize=(10, 6))
-
-plt.plot(train_mean, label="Train Mean", color="blue")
-plt.fill_between(range(epochs), np.array(train_mean) - np.array(train_std),
-                 np.array(train_mean) + np.array(train_std), color="blue", alpha=0.3)
-
-plt.plot(test_mean, label="Test Mean", color="orange")
-plt.fill_between(range(epochs), np.array(test_mean) - np.array(test_std),
-                 np.array(test_mean) + np.array(test_std), color="orange", alpha=0.3)
-
-plt.xlabel("Epoch")
-plt.ylabel("Smooth L1 Loss")
-plt.title("Learning Curve Bimodal (Mean ± Std Across All Folds/Repeats)")
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.show()
+# === Load the pretrained model (trained on all healthy subjects) ===
+model = DualGATv2_EarlyFusion().to(device)
+model.load_state_dict(torch.load("brainage_adrc_bimodal_pretrained.pt"))
+model.eval()
 
 
 
 
 
-#####################  PREDICTION & METRIC ANALYSIS ACROSS FOLDS/REPEATS  #####################
-from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
+
+#SHAP GLOBAL FEATURES
+
+import shap
+import torch
+import pandas as pd
+
+# === SHAP wrapper that uses only global features ===
+class GlobalOnlyModel(torch.nn.Module):
+    def __init__(self, original_model):
+        super(GlobalOnlyModel, self).__init__()
+        self.meta_head = original_model.meta_head
+        self.graph_dti_head = original_model.graph_dti_head
+        self.graph_fmri_head = original_model.graph_fmri_head
+        self.bio_head = original_model.bio_head
+        self.fc = original_model.fc
+
+    def forward(self, global_feats):
+        # Split features by group
+        meta = global_feats[:, 0:2]         # Sex, Genotype
+        graph_dti = global_feats[:, 2:6]    # DTI: 4 graph metrics
+        graph_fmri = global_feats[:, 6:10]  # fMRI: 4 graph metrics
+        bio = global_feats[:, 10:]          # Biomarkers: 7
+
+        # Pass through respective MLPs
+        meta_embed = self.meta_head(meta)
+        dti_embed = self.graph_dti_head(graph_dti)
+        fmri_embed = self.graph_fmri_head(graph_fmri)
+        bio_embed = self.bio_head(bio)
+
+        # Dummy GNN outputs
+        dummy_dti_embed = torch.zeros(global_feats.size(0), 128).to(global_feats.device)
+        dummy_fmri_embed = torch.zeros(global_feats.size(0), 128).to(global_feats.device)
+
+        # Concatenate
+        combined = torch.cat([dummy_dti_embed, dummy_fmri_embed,
+                              meta_embed, dti_embed, fmri_embed, bio_embed], dim=1)
+
+        return self.fc(combined)
+
+# === Extract global features and metadata
+global_feats = []
+subject_ids = []
+ages = []
+
+
+for data_dti, data_fmri in graph_data_list_adrc_bimodal_all:
+    # Get full global feature vector (13 from DTI + 4 from fMRI metrics)
+    dti_global = data_dti.global_features.squeeze(0)  # shape [13]
+    fmri_metrics = data_fmri.global_features.squeeze(0)[2:6]  # shape [4]
+
+    full_global = torch.cat([dti_global, fmri_metrics], dim=0)  # shape [17]
+    global_feats.append(full_global)
+
+    subject_ids.append(data_dti.subject_id)
+    ages.append(data_dti.y.item())
+
+
+
+
+
+global_feats_tensor = torch.stack(global_feats).to(device)
+print("Global features tensor shape:", global_feats_tensor.shape)  # should be [N, 17]
+
+
+
+
+
+
+
+global_feats_tensor = torch.stack(global_feats).to(device)  # [N, 17]
+
+# === Wrap and prepare the model
+wrapped_model = GlobalOnlyModel(model).to(device)
+wrapped_model.eval()
+
+# === Apply SHAP (DeepExplainer)
+explainer = shap.DeepExplainer(wrapped_model, global_feats_tensor)
+shap_values = explainer.shap_values(global_feats_tensor)
+if isinstance(shap_values, list):
+    shap_values = shap_values[0]
+
+# === Global feature names
+feature_names = [
+    "Sex", "Genotype",
+    "DTI_Clustering", "DTI_PathLen", "DTI_GlobalEff", "DTI_LocalEff",
+    "fMRI_Clustering", "fMRI_PathLen", "fMRI_GlobalEff", "fMRI_LocalEff",
+    "AB40", "AB42", "AB_ratio", "TTAU", "PTAU181", "NFL", "GFAP"
+]
+
+
+# === Save SHAP values
+df_shap = pd.DataFrame(shap_values, columns=feature_names)
+df_shap["Subject_ID"] = subject_ids
+df_shap["Age"] = ages
+df_shap = df_shap[["Subject_ID", "Age"] + feature_names]
+
+df_shap.to_csv("shap_global_features_adrc_bimodal.csv", index=False)
+print("Saved: shap_global_features_adrc_bimodal.csv")
+
+
+
+
+# 1 Beeswarm plot — ONE FOR ALL  global features
+
+import shap
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from torch_geometric.data import Batch
-from torch_geometric.loader import DataLoader
 
-# === Initialize storage ===
-fold_mae_list_bimodal = []
-fold_r2_list_bimodal = []
-fold_rmse_list_bimodal = []
+# === Load SHAP values (already saved to CSV)
+df_shap = pd.read_csv("shap_global_features_adrc_bimodal.csv")
 
-all_subject_ids_bimodal = []
-all_y_true_bimodal = []
-all_y_pred_bimodal = []
-all_folds_bimodal = []
-all_repeats_bimodal = []
-
-# Recalcular SKFold con la misma lógica
-skf_bimodal = StratifiedKFold(n_splits=k, shuffle=True, random_state=42)
-ages_bimodal = df_filtered["SUBJECT_AGE_SCREEN"].to_numpy()
-age_bins_bimodal = pd.qcut(ages_bimodal, q=5, labels=False)
-
-for fold, (train_idx, test_idx) in enumerate(skf_bimodal.split(graph_data_list_adrc_bimodal, age_bins_bimodal)):
-    print(f'\n--- BIMODAL Evaluating Fold {fold+1}/{k} ---')
-
-    test_data = [graph_data_list_adrc_bimodal[i] for i in test_idx]
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False, collate_fn=collate_bimodal)
+# === Define correct order of features (17 global features used in your model)
+feature_names = [
+    "Sex", "Genotype",
+    "DTI_Clustering", "DTI_PathLen", "DTI_GlobalEff", "DTI_LocalEff",
+    "fMRI_Clustering", "fMRI_PathLen", "fMRI_GlobalEff", "fMRI_LocalEff",
+    "AB40", "AB42", "AB_ratio", "TTAU", "PTAU181", "NFL", "GFAP"
+]
 
 
-    repeat_maes = []
-    repeat_r2s = []
+# === Extract SHAP matrix
+shap_matrix = df_shap[feature_names].values
 
-    for rep in range(repeats_per_fold):
-        print(f"  > Repeat {rep+1}/{repeats_per_fold}")
-
-        model = DualGATv2_EarlyFusion().to(device)
-        model.load_state_dict(torch.load(f"bimodal_model_fold_{fold+1}_rep_{rep+1}.pt"))
-        model.eval()
-
-        subject_ids_repeat = []
-        y_true_repeat = []
-        y_pred_repeat = []
-
-        with torch.no_grad():
-            for data_dti, data_fmri in test_loader:
-                data_dti = data_dti.to(device)
-                data_fmri = data_fmri.to(device)
-
-
-                output = model(data_dti, data_fmri).view(-1)
-
-                y_pred_repeat.extend(output.cpu().tolist())
-                y_true_repeat.extend(data_dti.y.cpu().tolist())
-                subject_ids_repeat.extend(data_dti.subject_id)
-
-        # Save metrics
-        mae = mean_absolute_error(y_true_repeat, y_pred_repeat)
-        r2 = r2_score(y_true_repeat, y_pred_repeat)
-        rmse = mean_squared_error(y_true_repeat, y_pred_repeat, squared=False)
-
-        repeat_maes.append(mae)
-        repeat_r2s.append(r2)
-
-        fold_mae_list_bimodal.append(mae)
-        fold_r2_list_bimodal.append(r2)
-        fold_rmse_list_bimodal.append(rmse)
-
-        all_subject_ids_bimodal.extend(subject_ids_repeat)
-        all_y_true_bimodal.extend(y_true_repeat)
-        all_y_pred_bimodal.extend(y_pred_repeat)
-        all_folds_bimodal.extend([fold + 1] * len(y_true_repeat))
-        all_repeats_bimodal.extend([rep + 1] * len(y_true_repeat))
-
-    print(f">> Fold {fold+1} | MAE: {np.mean(repeat_maes):.2f} ± {np.std(repeat_maes):.2f} | R²: {np.mean(repeat_r2s):.2f} ± {np.std(repeat_r2s):.2f}")
-
-# === Final aggregate results ===
-mae_mean = np.mean(fold_mae_list_bimodal)
-mae_std = np.std(fold_mae_list_bimodal)
-
-rmse_mean = np.mean(fold_rmse_list_bimodal)
-rmse_std = np.std(fold_rmse_list_bimodal)
-
-r2_mean = np.mean(fold_r2_list_bimodal)
-r2_std = np.std(fold_r2_list_bimodal)
-
-print("\n================== FINAL METRICS BIMODAL ==================")
-print(f"Global MAE:  {mae_mean:.2f} ± {mae_std:.2f}")
-print(f"Global RMSE: {rmse_mean:.2f} ± {rmse_std:.2f}")
-print(f"Global R²:   {r2_mean:.2f} ± {r2_std:.2f}")
-print("===========================================================")
-
-# === Save predictions to DataFrame ===
-df_preds_bimodal = pd.DataFrame({
-    "Subject_ID": all_subject_ids_bimodal,
-    "Real_Age": all_y_true_bimodal,
-    "Predicted_Age": all_y_pred_bimodal,
-    "Fold": all_folds_bimodal,
-    "Repeat": all_repeats_bimodal
-})
-
-# Outliers
-df_outliers = df_preds_bimodal[df_preds_bimodal["Predicted_Age"] > 120]
-print("\n=== OUTLIER PREDICTIONS (>120 years) ===")
-print(df_outliers)
-
-print("\n=== Random Sample of Predictions ===")
-print(df_preds_bimodal.sample(10))
-
-df_preds_bimodal["AbsError"] = abs(df_preds_bimodal["Real_Age"] - df_preds_bimodal["Predicted_Age"])
-print("\n=== Best Predictions (Lowest Error) ===")
-print(df_preds_bimodal.nsmallest(10, "AbsError"))
-
-print("\n=== Worst Predictions (Highest Error) ===")
-print(df_preds_bimodal.nlargest(10, "AbsError"))
-
-# === Scatter plot ===
-plt.figure(figsize=(8, 6))
-plt.scatter(df_preds_bimodal["Real_Age"], df_preds_bimodal["Predicted_Age"],
-            alpha=0.7, edgecolors='k', label="Predictions")
-
-min_age = min(df_preds_bimodal["Real_Age"].min(), df_preds_bimodal["Predicted_Age"].min()) - 5
-max_age = max(df_preds_bimodal["Real_Age"].max(), df_preds_bimodal["Predicted_Age"].max()) + 5
-plt.plot([min_age, max_age], [min_age, max_age], color='red', linestyle='--', label="Ideal (y = x)")
-
-plt.xlim(min_age, max_age)
-plt.ylim(min_age, max_age)
-plt.xlabel("Real Age")
-plt.ylabel("Predicted Age")
-plt.title("Predicted vs Real Ages (Bimodal Model)")
-plt.legend()
-
-# === Metrics box ===
-textstr = (
-    f"MAE:  {mae_mean:.2f} ± {mae_std:.2f}\n"
-    f"RMSE: {rmse_mean:.2f} ± {rmse_std:.2f}\n"
-    f"R²:   {r2_mean:.2f} ± {r2_std:.2f}"
+# === Create SHAP Explanation object
+shap_values_all = shap.Explanation(
+    values=shap_matrix,
+    data=shap_matrix,  # optional for beeswarm
+    feature_names=feature_names
 )
 
-plt.text(0.95, 0.05, textstr, transform=plt.gca().transAxes,
-         fontsize=12, verticalalignment='bottom', horizontalalignment='right',
-         bbox=dict(boxstyle="round,pad=0.3", edgecolor="black", facecolor="lightgray"))
-
-plt.grid(True)
+# === Beeswarm plot
+plt.figure(figsize=(12, 6))
+shap.plots.beeswarm(shap_values_all, max_display=len(feature_names), show=False)
+plt.title("ADRC bimodal SHAP Beeswarm — All Global Features (All Subjects)")
 plt.tight_layout()
 plt.show()
 
@@ -1478,47 +1232,271 @@ plt.show()
 
 
 
+#2 Beeswarm plots — PER GROUP
 
-######## FINAL BIMODAL TRAINING ON ALL HEALTHY SUBJECTS ########
+# === Define grouped feature names (consistent with df_shap columns)
+demographic_cols = ["Sex", "Genotype"]
+graphmetric_dti_cols = ["DTI_Clustering", "DTI_PathLen", "DTI_GlobalEff", "DTI_LocalEff"]
+graphmetric_fmri_cols = ["fMRI_Clustering", "fMRI_PathLen", "fMRI_GlobalEff", "fMRI_LocalEff"]
+biomarker_cols = ["AB40", "AB42", "AB_ratio", "TTAU", "PTAU181", "NFL", "GFAP"]
 
-from torch_geometric.loader import DataLoader
 
-# === Bimodal DataLoader ===
-train_loader = DataLoader(
-    graph_data_list_adrc_bimodal,
-    batch_size=6,
-    shuffle=True,
-    collate_fn=collate_bimodal  # ← clave para que funcione con (DTI, fMRI)
+# === Helper function for plotting
+def plot_beeswarm(df, features, title):
+    shap_matrix = df[features].values
+    shap_exp = shap.Explanation(
+        values=shap_matrix,
+        data=shap_matrix,
+        feature_names=features
+    )
+    plt.figure(figsize=(8, 5))
+    shap.plots.beeswarm(shap_exp, max_display=len(features), show=False)
+    plt.title(title)
+    plt.tight_layout()
+    plt.show()
+
+# === Plot each group
+plot_beeswarm(df_shap, demographic_cols, "ADRC bimodal SHAP Beeswarm — Demographics")
+plot_beeswarm(df_shap, graphmetric_dti_cols, "ADRC bimodal SHAP Beeswarm — DTI Graph Metrics")
+plot_beeswarm(df_shap, graphmetric_fmri_cols, "ADRC bimodal SHAP Beeswarm — fMRI Graph Metrics")
+plot_beeswarm(df_shap, biomarker_cols, "ADRC bimodal SHAP Beeswarm — Biomarkers")
+
+
+
+
+
+
+
+#3 Beeswarm by age groups
+
+import shap
+import matplotlib.pyplot as plt
+
+# === Load SHAP values CSV if needed
+df_shap = pd.read_csv("shap_global_features_adrc_bimodal.csv")
+
+# === Create age bins using tertiles
+df_shap["Age_Group"] = pd.qcut(df_shap["Age"], q=3, labels=["Young", "Middle", "Old"])
+
+# === Optional: check counts
+print(df_shap["Age_Group"].value_counts())
+
+# === Get correct feature names (excluding Subject_ID, Age, Age_Group)
+exclude_cols = ["Subject_ID", "Age", "Age_Group"]
+feature_names = [col for col in df_shap.columns if col not in exclude_cols]
+
+# === Beeswarm plot function
+def plot_beeswarm(df_group, title):
+    shap_matrix = df_group[feature_names].values
+    shap_exp = shap.Explanation(
+        values=shap_matrix,
+        data=shap_matrix,
+        feature_names=feature_names
+    )
+    plt.figure(figsize=(10, 5))
+    shap.plots.beeswarm(shap_exp, max_display=len(feature_names), show=False)
+    plt.title(title)
+    plt.tight_layout()
+    plt.show()
+
+# === Loop over age groups
+for group in ["Young", "Middle", "Old"]:
+    df_group = df_shap[df_shap["Age_Group"] == group]
+    plot_beeswarm(df_group, f"SHAP Beeswarm — Age Group: {group}")
+
+
+
+#4 age and feature type
+
+import shap
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# === Load SHAP values
+df_shap = pd.read_csv("shap_global_features_adrc_bimodal.csv")
+
+# === Create Age Groups (tertiles)
+df_shap["Age_Group"] = pd.qcut(df_shap["Age"], q=3, labels=["Young", "Middle", "Old"])
+
+# === Define feature groups (must match column names exactly)
+demographic_cols = ["Sex", "Genotype"]
+graphmetric_dti_cols = ["DTI_Clustering", "DTI_PathLen", "DTI_GlobalEff", "DTI_LocalEff"]
+graphmetric_fmri_cols = ["fMRI_Clustering", "fMRI_PathLen", "fMRI_GlobalEff", "fMRI_LocalEff"]
+biomarker_cols = ["AB40", "AB42", "AB_ratio", "TTAU", "PTAU181", "NFL", "GFAP"]
+
+# === Beeswarm plotting function
+def plot_beeswarm(df, features, title):
+    shap_matrix = df[features].values
+    shap_exp = shap.Explanation(
+        values=shap_matrix,
+        data=shap_matrix,
+        feature_names=features
+    )
+    plt.figure(figsize=(8, 5))
+    shap.plots.beeswarm(shap_exp, max_display=len(features), show=False)
+    plt.title(title)
+    plt.tight_layout()
+    plt.show()
+
+# === Loop over age groups and plot each feature group
+for group in ["Young", "Middle", "Old"]:
+    df_group = df_shap[df_shap["Age_Group"] == group]
+
+    # Plot for each group of features
+    plot_beeswarm(df_group, demographic_cols, f"ADRC Bimodal SHAP Beeswarm — Demographics ({group})")
+    plot_beeswarm(df_group, graphmetric_dti_cols, f"ADRC Bimodal SHAP Beeswarm — DTI Graph Metrics ({group})")
+    plot_beeswarm(df_group, graphmetric_fmri_cols, f"ADRC Bimodal SHAP Beeswarm — fMRI Graph Metrics ({group})")
+    plot_beeswarm(df_group, biomarker_cols, f"ADRC Bimodal SHAP Beeswarm — Biomarkers ({group})")
+
+
+
+
+#5 PERSONALIZED BY SUBJECT
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# === Load SHAP values for all subjects (with Age and Subject_ID) ===
+df_shap = pd.read_csv("shap_global_features_adrc_bimodal.csv")
+
+# === Create Age Groups using tertiles
+df_shap["Age_Group"] = pd.qcut(df_shap["Age"], q=3, labels=["Young", "Middle", "Old"])
+
+# === Define SHAP feature columns (exclude ID and Age)
+exclude_cols = ["Subject_ID", "Age", "Age_Group"]
+feature_names = [col for col in df_shap.columns if col not in exclude_cols]
+
+# === Select one representative subject per age group
+subject_young = df_shap.loc[df_shap["Age"].idxmin()]  # Youngest subject
+subject_old = df_shap.loc[df_shap["Age"].idxmax()]    # Oldest subject
+
+# For middle, choose subject closest to median age
+median_age = df_shap["Age"].median()
+subject_middle = df_shap.iloc[(df_shap["Age"] - median_age).abs().argsort().iloc[0]]
+
+# === Plotting function: signed horizontal bar plot of SHAP values per subject
+def plot_subject_shap_signed(subject_row):
+    subject_id = subject_row["Subject_ID"]
+    age = subject_row["Age"]
+
+    # Extract SHAP values (signed)
+    shap_values = subject_row[feature_names]
+
+    # Sort by absolute value, preserve sign
+    shap_sorted = shap_values.reindex(shap_values.abs().sort_values().index)
+
+    # Plot
+    plt.figure(figsize=(8, 5))
+    shap_sorted.plot(kind="barh", color=shap_sorted.apply(lambda x: "crimson" if x < 0 else "steelblue"))
+    plt.axvline(0, color="black", linestyle="--", linewidth=0.7)
+    plt.xlabel("SHAP value (contribution to prediction)")
+    plt.title(f"ADRC Bimodal SHAP Global Feature Impact — Subject {subject_id} (Age: {int(age)})")
+    plt.tight_layout()
+    plt.show()
+
+# === Apply to each selected subject
+plot_subject_shap_signed(subject_young)
+plot_subject_shap_signed(subject_middle)
+plot_subject_shap_signed(subject_old)
+
+
+
+#SAVE
+
+import os
+import shap
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Load SHAP CSV
+df_shap = pd.read_csv("shap_global_features_adrc_bimodal.csv")
+
+# Define features
+feature_names = [
+    "Sex", "Genotype",
+    "DTI_Clustering", "DTI_PathLen", "DTI_GlobalEff", "DTI_LocalEff",
+    "fMRI_Clustering", "fMRI_PathLen", "fMRI_GlobalEff", "fMRI_LocalEff",
+    "AB40", "AB42", "AB_ratio", "TTAU", "PTAU181", "NFL", "GFAP"
+]
+demographic_cols = ["Sex", "Genotype"]
+graphmetric_dti_cols = ["DTI_Clustering", "DTI_PathLen", "DTI_GlobalEff", "DTI_LocalEff"]
+graphmetric_fmri_cols = ["fMRI_Clustering", "fMRI_PathLen", "fMRI_GlobalEff", "fMRI_LocalEff"]
+biomarker_cols = ["AB40", "AB42", "AB_ratio", "TTAU", "PTAU181", "NFL", "GFAP"]
+
+# Make output directories
+os.makedirs("beeswarm_plots/all_global", exist_ok=True)
+os.makedirs("beeswarm_plots/by_group", exist_ok=True)
+os.makedirs("beeswarm_plots/by_age_group", exist_ok=True)
+os.makedirs("beeswarm_plots/by_age_and_type", exist_ok=True)
+os.makedirs("beeswarm_plots/personalized", exist_ok=True)
+
+# === Beeswarm #1 — All Global Features
+shap_values_all = shap.Explanation(
+    values=df_shap[feature_names].values,
+    data=df_shap[feature_names].values,
+    feature_names=feature_names
 )
-
-# === Initialize model and optimizer ===
-model = DualGATv2_EarlyFusion().to(device)
-optimizer = torch.optim.AdamW(model.parameters(), lr=0.002, weight_decay=1e-4)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
-criterion = torch.nn.SmoothL1Loss(beta=1)
-
-# === Training loop ===
-epochs = 90
-train_losses = []
-
-print("\n=== Full Training on ADRC Healthy (Bimodal, No Validation) ===")
-for epoch in range(epochs):
-    loss = train(model, train_loader, optimizer, criterion)
-    train_losses.append(loss)
-    scheduler.step()
-    print(f"Epoch {epoch+1}/{epochs} | Train Loss: {loss:.4f}")
-
-# === Save final model ===
-torch.save(model.state_dict(), "brainage_adrc_bimodal_pretrained.pt")
-print("\nPretrained bimodal model saved as 'brainage_adrc_bimodal_pretrained.pt'")
-
-# === Plot learning curve ===
-plt.figure(figsize=(8, 5))
-plt.plot(train_losses, label="Train Loss")
-plt.xlabel("Epoch")
-plt.ylabel("Loss")
-plt.title("Learning Curve - ADRC Bimodal Model (All Healthy)")
-plt.grid(True)
-plt.legend()
+plt.figure(figsize=(12, 6))
+shap.plots.beeswarm(shap_values_all, max_display=len(feature_names), show=False)
+plt.title("ADRC bimodal SHAP Beeswarm — All Global Features")
 plt.tight_layout()
-plt.show()
+plt.savefig("beeswarm_plots/all_global/beeswarm_all_global.png")
+plt.close()
+
+# === Beeswarm #2 — Per Feature Group
+def plot_and_save(df, features, title, path):
+    shap_exp = shap.Explanation(
+        values=df[features].values,
+        data=df[features].values,
+        feature_names=features
+    )
+    plt.figure(figsize=(8, 5))
+    shap.plots.beeswarm(shap_exp, max_display=len(features), show=False)
+    plt.title(title)
+    plt.tight_layout()
+    plt.savefig(path)
+    plt.close()
+
+plot_and_save(df_shap, demographic_cols, "Demographics", "beeswarm_plots/by_group/demographics.png")
+plot_and_save(df_shap, graphmetric_dti_cols, "DTI Graph Metrics", "beeswarm_plots/by_group/dti_graph_metrics.png")
+plot_and_save(df_shap, graphmetric_fmri_cols, "fMRI Graph Metrics", "beeswarm_plots/by_group/fmri_graph_metrics.png")
+plot_and_save(df_shap, biomarker_cols, "Biomarkers", "beeswarm_plots/by_group/biomarkers.png")
+
+# === Beeswarm #3 — By Age Group
+df_shap["Age_Group"] = pd.qcut(df_shap["Age"], q=3, labels=["Young", "Middle", "Old"])
+for group in ["Young", "Middle", "Old"]:
+    df_group = df_shap[df_shap["Age_Group"] == group]
+    plot_and_save(df_group, feature_names, f"SHAP Beeswarm — Age Group: {group}", f"beeswarm_plots/by_age_group/{group.lower()}.png")
+
+# === Beeswarm #4 — Age Group + Feature Type
+for group in ["Young", "Middle", "Old"]:
+    df_group = df_shap[df_shap["Age_Group"] == group]
+    plot_and_save(df_group, demographic_cols, f"Demographics ({group})", f"beeswarm_plots/by_age_and_type/{group.lower()}_demographics.png")
+    plot_and_save(df_group, graphmetric_dti_cols, f"DTI Graph Metrics ({group})", f"beeswarm_plots/by_age_and_type/{group.lower()}_dti.png")
+    plot_and_save(df_group, graphmetric_fmri_cols, f"fMRI Graph Metrics ({group})", f"beeswarm_plots/by_age_and_type/{group.lower()}_fmri.png")
+    plot_and_save(df_group, biomarker_cols, f"Biomarkers ({group})", f"beeswarm_plots/by_age_and_type/{group.lower()}_biomarkers.png")
+
+# === Beeswarm #5 — Personalized per Subject
+subject_young = df_shap.loc[df_shap["Age"].idxmin()]
+subject_old = df_shap.loc[df_shap["Age"].idxmax()]
+subject_middle = df_shap.iloc[(df_shap["Age"] - df_shap["Age"].median()).abs().argsort().iloc[0]]
+
+def plot_subject(subject_row, filename):
+    subject_id = subject_row["Subject_ID"]
+    age = subject_row["Age"]
+    shap_vals = subject_row[feature_names]
+    shap_sorted = shap_vals.reindex(shap_vals.abs().sort_values().index)
+    plt.figure(figsize=(8, 5))
+    shap_sorted.plot(kind="barh", color=shap_sorted.apply(lambda x: "crimson" if x < 0 else "steelblue"))
+    plt.axvline(0, color="black", linestyle="--", linewidth=0.7)
+    plt.xlabel("SHAP value (contribution to prediction)")
+    plt.title(f"Subject {subject_id} (Age: {int(age)})")
+    plt.tight_layout()
+    plt.savefig(f"beeswarm_plots/personalized/{filename}")
+    plt.close()
+
+plot_subject(subject_young, "subject_young.png")
+plot_subject(subject_middle, "subject_middle.png")
+plot_subject(subject_old, "subject_old.png")
