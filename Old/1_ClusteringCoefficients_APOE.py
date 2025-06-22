@@ -580,7 +580,7 @@ for subject_id, matrix in matched_connectomes.items():
     for i, level in enumerate(threshold_levels):
         threshold_value = np.percentile(matrix.to_numpy(), 100 - level)
         G = connectome_to_graph(matrix, threshold=threshold_value)
-        clustering_coeff = nx.average_clustering(G, weight="weight")  # ✅ AVERAGE instead of GLOBAL
+        clustering_coeff = nx.average_clustering(G, weight="weight")  #  AVERAGE instead of GLOBAL
         clustering_results[threshold_titles[i]].append(clustering_coeff)
 
 # === 5. Create DataFrame with results ===
