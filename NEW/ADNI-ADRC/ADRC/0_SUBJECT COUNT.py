@@ -1,3 +1,6 @@
+#Counting ADRC Subjects 
+#(Some from the diagnostic group were unknowns and were counted manually according to their MOCATOTS score)
+
 #ADRC DTI fmri 2 channels bimodal 
 #with rmse
 #With biomarkers
