@@ -1,11 +1,11 @@
-# AD-DECODE Brain Age Prediction Pipeline
+AD-DECODE Brain Age Prediction Pipeline
 
-## 0_CountingSubjectsADDECODE.py
+# 0_CountingSubjectsADDECODE.py
 Counts subjects with available connectopmes, gloal features, node features, PCA genes. 
 Counts by sex, risk groups, APOE genotype.
 
 
-## 1.0_Trained model on all healthy subjects.py
+# 1.0_Trained model on all healthy subjects.py
 This repository contains the full pipeline for preprocessing, training, and evaluation of a Graph Attention Network (GATv2) model to predict brain age using the AD-DECODE dataset. The pipeline processes connectomes, node/global features, and trains a GNN using 7-fold stratified cross-validation with 10 repetitions per fold.
 
 ### 1. Overview
