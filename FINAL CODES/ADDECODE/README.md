@@ -93,9 +93,8 @@ Only healthy controls retained (excludes AD and MCI).
 
 
 
-# 1.2a_Scatter1_ADDECODE.py
-# 1.2b_Scatter1_ADDECODE.py
-Uses saved CSV from cross validdation to **build scatter plots** (real vs. predicted age) 
+# 1.2a_Scatter1_ADDECODE.py, 1.2b_Scatter1_ADDECODE.py
+Use saved CSV from cross validdation to **build scatter plots** (real vs. predicted age) 
 Different types, with all the repetitions, the mean...
 
 
@@ -193,7 +192,7 @@ Outliers are removed
 
 Scatter plots with regression lines showing the relationship between:
   - Brain Age Gap (BAG) or corrected BAG (cBAG)
-  - and z-scored relative volume of each brain region (ROI)
+  - and z-scored relative volume of each brain region (ROI).
 They include: Regression line, β coefficient (slope), R² (explained variance), p-value (statistical significance).
 
 Summary table for all volumes, with both BAG and cBAG stats
