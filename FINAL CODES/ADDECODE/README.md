@@ -186,7 +186,7 @@ Personalized Feature Importance for 3 representative subjects: Young, middle, ol
 # 6.0 and 6.1 (not used)
 volume of hippocampus only
 
-# 6.1_Loop for more regions No outliers
+# 6.2_Loop for more regions No outliers
 **LINEAR REGRESSIONS between Brain Age Gap (BAG) / Corrected BAG (cBAG) and brain volumes for all regions.**
 Outliers are removed
 
