@@ -8,49 +8,49 @@ Counts by sex, risk groups, APOE genotype.
 # 1.0_Trained model on all healthy subjects.py
 This repository contains the full pipeline for preprocessing, training, and evaluation of a Graph Attention Network (GATv2) model to predict brain age using the AD-DECODE dataset. The pipeline processes connectomes, node/global features, and trains a GNN using 7-fold stratified cross-validation with 10 repetitions per fold.
 
-### 1. Overview
+### Overview
 - **Data**: Structural connectomes (84×84), regional node features (FA, MD, Volume), demographics, graph metrics, PCA gene components.
 - **Model**: 4-layer GATv2 with residual connections and batch normalization. Multi-head MLPs process global features.
 - **Evaluation**: 7-fold stratified cross-validation × 10 repeats, with performance metrics (MAE,RMSE, R²) 
 
-### 2. Data Preprocessing
+### Data Preprocessing
 Only healthy controls retained (excludes AD and MCI).
 
-#### 2.1 Connectomes
+#### Connectomes
 - Loaded from ZIP archive.
 - White matter on name file excluded
 - Log(x+1) transformation applied.
 - 70% strongest connections retained (percentile thresholding).
 
-#### 2.2 Metadata
+#### Metadata
 - Extracted: `sex`, `genotype`, `systolic`, `diastolic`.
 - Sex and genotype label-encoded.
 - Normalized using z-scores.
 
-#### 2.3 Regional Node Features
+#### Regional Node Features
 - Extracted FA, MD, Volume (from regional stats).
 - Node-wise clustering coefficient added.
 - All node features normalized **per node** across subjects (z-score).
 
-#### 2.4 PCA Genes
+#### PCA Genes
 - Top 10 age-correlated PCA components selected using Spearman correlation.
 - Merged by subject ID.
 - Normalized with z-scoring.
 
-#### 2.5 Graph Metrics
+#### Graph Metrics
 - Computed from log-thresholded connectomes:
   - Global clustering coefficient
   - Average shortest path length
 - Normalized via z-score.
 
-### 3. Graph Construction
+### Graph Construction
 - Each subject converted into a PyTorch Geometric `Data` object:
   - **Node features**: FA, MD, Volume, clustering (shape: `[84, 4]`)
   - **Edge features**: 70%-thresholded, log-transformed connectome
   - **Global features**: concatenated tensor of metadata + graph metrics + PCA (`[16]`)
   - **Target**: chronological age
 
-### 4. Model Architecture
+### Model Architecture
 - **Node encoder**: Linear(4 → 64) + ReLU + Dropout
 - **GATv2 layers**: 4 layers, 8 heads, with residual connections and batch norm
 - **Global features heads**:
@@ -61,7 +61,7 @@ Only healthy controls retained (excludes AD and MCI).
   - Combines GNN graph-level output + all global embeddings
   - Final output: predicted brain age (1 scalar)
 
-### 5. Training Configuration
+### Training Configuration
 - **Loss**: SmoothL1Loss (Huber loss, β = 1)
 - **Optimizer**: AdamW (`lr = 0.002`, `weight_decay = 1e-4`)
 - **Scheduler**: StepLR (`step_size = 20`, `gamma = 0.5`)
@@ -70,21 +70,111 @@ Only healthy controls retained (excludes AD and MCI).
 - **Early stopping**: Patience = 40 epochs
 - **CV Strategy**: Stratified 7-fold CV using age bins, 10 repeats per fold
 
-### 6. Evaluation
-#### 6.1 Metrics
+###  Evaluation
+#### Metrics
 - Mean Absolute Error (MAE)
 - Root Mean Squared Error (RMSE)
 - Coefficient of Determination (R²)
 - Computed per fold and repetition
 
-#### 6.2 Visualizations
+####  Visualizations
 - Learning curves (per repetition and mean ± std)
 - Scatter plot of predicted vs. real age
 
-### 7. Final Model
+#### Saves all predictions to CSV
+
+### Final Model
 - Trained on **all healthy subjects** (no validation split)
 - Fixed training: 100 epochs (based on previous early stopping analysis)
 - Final model saved 
 
 
+
+# 1.2a_Scatter1_ADDECODE.py
+# 1.2b_Scatter1_ADDECODE.py
+Uses saved CSV from cross validdation to build scatter plots (real vs. predicted age) different types, with all the repetitions, the mean...
+
+
+# 2.0 Predict on all risks and BAG.py
+This code uses the saved trained model on all healthy subjects (end of 1.0 code) to apply it to all risks.
+
+- Loads and matches all data (all risks) the same as in code 1.0
+- The normalizations are based on only healthy subjects to avoid data leakage, and applies this same normalization to all risk subjects.
+- Uses the pretrained model on healthy subjects from code 1.0 and applies it to all subjects
+  
+- **Predicts brain age** for each subject (all risks)
+- Computes BAG and cBAG
+- Vizualizes **BAG and cBAG vs age** and saves them
+- **Saves CSV with real age, predicted age, BAG, cBAG, metadata, cognition metrics**
+
+
+# 2.1 BAG.py
+Visualizes and saves BAG and cBAG vs age plots
+
+
+# 2.2_Violin plots.py
+Violin plots of BAG and cBAG grouped by:
+- Risk group
+- APOE genotype (e.g., APOE33, APOE44)
+- APOE risk status (E4+ vs E4−)
+- Sex (M vs F) 
+
+### Statistical comparisons included on each plot:
+-Kruskal-Wallis for global group differences
+-Mann-Whitney U for pairwise comparisons
+
+CSV files with full statistical test results for BAG and cBAG
+
+
+# 3_AUC Prec Recall accuracy of BAG to predict clinical group and APOE.py
+
+Outputs of BAG/cBAG as a biomarker for :
+- APOE status (E4+ vs E4−)
+- Risk group comparisons: ( AD vs NoRisk and NoRisk+Familial vs MCI+AD)
+- Sex (Female vs Male)
+
+Metrics: AUC (ROC), Accuracy, Recall, Precision, F1-score
+Best threshold (Youden’s J or recall ≥ 0.60)
+
+# 4.0_SHAP 
+- Uses the pretrained model on healthy subjects from code 1.0 and applies it to all subjects
+
+### SHAP Global Feature Analysis
+Wraps the model to isolate global feature contributions (demographics, metrics, PCA genes).
+Computes SHAP values with DeepExplainer.
+Saves results to CSV: shap_global_features_all_subjects.csv.
+
+### SHAP Node Feature Analysis (Regional Importance)
+Wraps the model to isolate node feature contributions.
+Computes SHAP values for each region across all subjects.
+Averages SHAP values across node features (FA, MD, Volume, clustering).
+
+Saves:
+shap_node_feature_importance.csv → per subject and region.
+shap_node_importance_by_region.csv → average SHAP per brain region.
+
+Visualizations:
+Beeswarm plot of top 20 most important brain regions.
+
+
+# 4.1_SHAP global plots.py
+Loads SHAP values for global features per subject: shap_global_features_all_subjects.csv (from code 4.0)
+Loads original (real) feature values and metadata: brain_age_predictions_with_metadata.csv
+
+*Beeswarms where each dot is colored by the real feature value, not SHAP value*
+BEESWARMS:
+- ONE FOR ALL global features
+- One per kind of global feature
+- BY AGE GROUPS (check dot color)
+- BY AGE GROUP AND TYPE OF FEATURE (check dot color)
+
+Personalized Feature Importance for 3 representative subjects: Young, middle, old
+
+# 5_BAG-Cognition Regression.py
+Investigates whether Brain Age Gap (BAG) and Corrected BAG (cBAG) are associated with cognitive performance in the AD-DECODE dataset using linear regression.
+
+- For each cognitive metric the script creaes a plot with two panels ( left: BAG vs cog, right cBAG vs. cog). They include: Regression line, β coefficient (slope), R² (explained variance), p-value (statistical significance).
+- Summary table for all cognitive metrics, with both BAG and cBAG stats.
+
+  
 
