@@ -1,6 +1,6 @@
 # ADDECODE
 # === BAG–Cognition Regression (AD-DECODE) =====================================
-# Every line is commented in English, as requested.
+
 
 import os                              # File-system operations
 import pandas as pd                    # Data handling
