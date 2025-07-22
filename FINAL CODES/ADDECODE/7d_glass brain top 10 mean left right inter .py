@@ -10,7 +10,7 @@ import matplotlib.cm as cm
 from nilearn import plotting
 
 # ------------------------------------------------------------------
-# 1) CARGAR TODOS LOS CSV DE SHAP (AD-DECODE)
+# 1)  CSV SHAP (AD-DECODE)
 # ------------------------------------------------------------------
 shap_dir = ("/home/bas/Desktop/Paula/GATS/Better/BEST2/PCA genes/"
             "BAG/ADDECODE Saving figures/shap_outputs_addecode")
@@ -24,7 +24,7 @@ for fname in os.listdir(shap_dir):
 shap_df = pd.concat(all_shap_dfs, ignore_index=True)
 
 # ------------------------------------------------------------------
-# 2) REEMPLAZAR ÍNDICES POR NOMBRES DE REGIÓN (lista de 84 nombres)
+# 2) Replace index for regions names 
 # ------------------------------------------------------------------
 region_names = [
     "Left-Cerebellum-Cortex", "Left-Thalamus-Proper", "Left-Caudate", "Left-Putamen", "Left-Pallidum",
@@ -53,7 +53,7 @@ shap_df["Region_1"] = shap_df["Node_i"].apply(lambda x: region_names[int(x)])
 shap_df["Region_2"] = shap_df["Node_j"].apply(lambda x: region_names[int(x)])
 
 # ------------------------------------------------------------------
-# 3) AGRUPAR Y CLASIFICAR CONEXIONES
+# 3) Group and clasify connections
 # ------------------------------------------------------------------
 # Nota: la columna de interés es `SHAP_val` (no `SHAP_value`)
 grouped = shap_df.groupby(["Region_1", "Region_2"])["SHAP_val"].mean().reset_index()
@@ -71,12 +71,12 @@ top10_inter = grouped[grouped["Type"] == "Inter"]      .nlargest(10, "SHAP_val")
 top_combined = pd.concat([top10_left, top10_right, top10_inter], ignore_index=True)
 
 # ------------------------------------------------------------------
-# 4) CARGAR CENTROIDES DEL ATLAS (misma ruta)
+# 4)  CENTROIDS from the  ATLAS 
 # ------------------------------------------------------------------
 img = nib.load("/home/bas/Desktop/Paula/Visualization/IITmean_RPI/IITmean_RPI_labels.nii.gz")
 data, affine = img.get_fdata(), img.affine
 
-labels = np.unique(data)[1:]  # quita 0
+labels = np.unique(data)[1:]  # removes 0
 centroids = [nib.affines.apply_affine(affine, np.argwhere(data == l).mean(0)) for l in labels]
 centroid_df = pd.DataFrame(centroids, columns=["X", "Y", "Z"]); centroid_df["Label"] = labels
 
@@ -85,7 +85,7 @@ final_df = pd.merge(centroid_df, lookup, left_on="Label", right_on="Index")
 name2coord = {row["Structure"]: [row["X"], row["Y"], row["Z"]] for _, row in final_df.iterrows()}
 
 # ------------------------------------------------------------------
-# 5) FUNCIÓN DE DIBUJO Y GUARDADO
+# 5) plot function
 # ------------------------------------------------------------------
 def plot_glass_brain(top_df, title, save_path):
     regs = list(set(top_df["Region_1"]) | set(top_df["Region_2"]))
@@ -119,7 +119,7 @@ def plot_glass_brain(top_df, title, save_path):
     print(f"✔ Saved: {save_path}")
 
 # ------------------------------------------------------------------
-# 6) GENERAR Y GUARDAR FIGURAS
+# 6) save figures
 # ------------------------------------------------------------------
 out_dir = "figs_glass_brain_dti_addecode"
 plot_glass_brain(top10_left,  "AD-DECODE Top-10 Intra-Left DTI SHAP",   f"{out_dir}/glass_intra_left.png")
