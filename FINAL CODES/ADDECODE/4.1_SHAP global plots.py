@@ -131,7 +131,7 @@ plot_beeswarm(df_shap, pca_cols, "SHAP Beeswarm — PCA Gene Components")
 
 
 
-
+# CHECK COLOR OF DOTS 
 # 2) BEESWARM BY AGE GROUPS
 
 # SHAP BY AGE GROUPS
