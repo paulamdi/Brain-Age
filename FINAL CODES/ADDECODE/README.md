@@ -93,7 +93,7 @@ Only healthy controls retained (excludes AD and MCI).
 
 
 
-# 1.2a_Scatter1_ADDECODE.p   1.2b_Scatter1_ADDECODE.py
+# 1.2a_Scatter1_ADDECODE.py 1.2b_Scatter1_ADDECODE.py
 Use saved CSV from cross validdation to **build scatter plots** (real vs. predicted age) 
 Different types, with all the repetitions, the mean...
 
