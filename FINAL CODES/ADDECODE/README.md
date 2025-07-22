@@ -1,11 +1,14 @@
 AD-DECODE Brain Age Prediction Pipeline
 
 # 0_CountingSubjectsADDECODE.py
-Counts subjects with available connectopmes, gloal features, node features, PCA genes. 
+**Counts subjects** with available connectopmes, gloal features, node features, PCA genes. 
 Counts by sex, risk groups, APOE genotype.
 
 
 # 1.0_Trained model on all healthy subjects.py
+**Main model on helathy subjects evaluated using 7 fold cv with 10 repetitions per fold
+Once evaluated the model is trained on all helathy subjects**
+
 This repository contains the full pipeline for preprocessing, training, and evaluation of a Graph Attention Network (GATv2) model to predict brain age using the AD-DECODE dataset. The pipeline processes connectomes, node/global features, and trains a GNN using 7-fold stratified cross-validation with 10 repetitions per fold.
 
 ### Overview
@@ -92,18 +95,19 @@ Only healthy controls retained (excludes AD and MCI).
 
 # 1.2a_Scatter1_ADDECODE.py
 # 1.2b_Scatter1_ADDECODE.py
-Uses saved CSV from cross validdation to build scatter plots (real vs. predicted age) different types, with all the repetitions, the mean...
+Uses saved CSV from cross validdation to **build scatter plots** (real vs. predicted age) 
+Different types, with all the repetitions, the mean...
 
 
 # 2.0 Predict on all risks and BAG.py
-This code uses the saved trained model on all healthy subjects (end of 1.0 code) to apply it to all risks.
+This code uses the saved trained model on all healthy subjects (end of 1.0 code) to **apply it to all risks.**
 
 - Loads and matches all data (all risks) the same as in code 1.0
 - The normalizations are based on only healthy subjects to avoid data leakage, and applies this same normalization to all risk subjects.
 - Uses the pretrained model on healthy subjects from code 1.0 and applies it to all subjects
   
 - **Predicts brain age** for each subject (all risks)
-- Computes BAG and cBAG
+- Computes **BAG and cBAG**
 - Vizualizes **BAG and cBAG vs age** and saves them
 - **Saves CSV with real age, predicted age, BAG, cBAG, metadata, cognition metrics**
 
@@ -113,15 +117,15 @@ Visualizes and saves BAG and cBAG vs age plots
 
 
 # 2.2_Violin plots.py
-Violin plots of BAG and cBAG grouped by:
+**Violin plots** of BAG and cBAG grouped by:
 - Risk group
 - APOE genotype (e.g., APOE33, APOE44)
 - APOE risk status (E4+ vs E4−)
 - Sex (M vs F) 
 
 ### Statistical comparisons included on each plot:
--Kruskal-Wallis for global group differences
--Mann-Whitney U for pairwise comparisons
+- Kruskal-Wallis for global group differences
+- Mann-Whitney U for pairwise comparisons
 
 CSV files with full statistical test results for BAG and cBAG
 
@@ -137,6 +141,8 @@ Metrics: AUC (ROC), Accuracy, Recall, Precision, F1-score
 Best threshold (Youden’s J or recall ≥ 0.60)
 
 # 4.0_SHAP 
+Computes **SHAP values for global features** and node features
+
 - Uses the pretrained model on healthy subjects from code 1.0 and applies it to all subjects
 
 ### SHAP Global Feature Analysis
@@ -144,7 +150,7 @@ Wraps the model to isolate global feature contributions (demographics, metrics, 
 Computes SHAP values with DeepExplainer.
 Saves results to CSV: shap_global_features_all_subjects.csv.
 
-### SHAP Node Feature Analysis (Regional Importance)
+### SHAP Node Feature Analysis (not used)
 Wraps the model to isolate node feature contributions.
 Computes SHAP values for each region across all subjects.
 Averages SHAP values across node features (FA, MD, Volume, clustering).
@@ -158,6 +164,8 @@ Beeswarm plot of top 20 most important brain regions.
 
 
 # 4.1_SHAP global plots.py
+**Builds beeswarm plots and personalized plots for global features**
+
 Loads SHAP values for global features per subject: shap_global_features_all_subjects.csv (from code 4.0)
 Loads original (real) feature values and metadata: brain_age_predictions_with_metadata.csv
 
@@ -171,10 +179,47 @@ BEESWARMS:
 Personalized Feature Importance for 3 representative subjects: Young, middle, old
 
 # 5_BAG-Cognition Regression.py
-Investigates whether Brain Age Gap (BAG) and Corrected BAG (cBAG) are associated with cognitive performance in the AD-DECODE dataset using linear regression.
+**LINEAR REGRESSIONS between Brain Age Gap (BAG) / Corrected BAG (cBAG) and cognitive performance** 
 
 - For each cognitive metric the script creaes a plot with two panels ( left: BAG vs cog, right cBAG vs. cog). They include: Regression line, β coefficient (slope), R² (explained variance), p-value (statistical significance).
 - Summary table for all cognitive metrics, with both BAG and cBAG stats.
 
-  
+# 6.0 and 6.1 (not used)
+volume of hippocampus only
+
+# 6.1_Loop for more regions No outliers
+**LINEAR REGRESSIONS between Brain Age Gap (BAG) / Corrected BAG (cBAG) and brain volumes for all regions.**
+Outliers are removed
+
+Scatter plots with regression lines showing the relationship between:
+  - Brain Age Gap (BAG) or corrected BAG (cBAG)
+  - and z-scored relative volume of each brain region (ROI)
+They include: Regression line, β coefficient (slope), R² (explained variance), p-value (statistical significance).
+
+Summary table for all volumes, with both BAG and cBAG stats
+
+# 7a_SHAP EDGES.py
+**Computes SHAP values for edges**
+
+Wraps the model to isolate edges
+Computes SHAP values with GradientExplainer.
+Saves one cvs per subject with edge pairs and their SHAP value
+
+# 7b_SHAP EDGES plots.py (not used)
+Uses shap edges values from 7a to create plots and beeswarm plots for most important edges (mean between subjects)
+
+
+# 7c_glass brain top 10 mean.py
+**Represents the 10 most important connections in a glass brain**
+
+Load SHAP values from all subjects (from script 7a)
+Computes the mean  SHAP value per edge across subjects
+Selects the top 10 most important edges (highest average shap contribution)
+
+Represents it in a Glass brain:
+The glass brain visualization was generated using nilearn.plot_connectome, which overlays the top SHAP-based DTI connections on a standard MNI152 brain template. This background image is provided by Nilearn and does not require manual loading. The node coordinates were computed from the IIT atlas (IITmean_RPI_labels.nii.gz) using the corresponding region centroids in MNI space.
+
+
+# 7d_glass brain top 10 mean left right inter.py
+Since most important connections were from the left hemisphere, this code represents the top 10 connections from left, right and interhemispheric connections
 
