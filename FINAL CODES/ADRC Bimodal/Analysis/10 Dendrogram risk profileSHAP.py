@@ -1,10 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Jun 24 13:37:20 2025
-
-@author: bas
-"""
+#Hierarchical clustering heatmap
 
 import pandas as pd
 import numpy as np
