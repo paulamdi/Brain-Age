@@ -32,14 +32,9 @@ Computes shap global values and Visualizes global feature importance using SHAP 
 
 
 ## FOLDERS 5.2 shap edges dti and 5.3 shap edges  fmri 
-### SHAP edges.py**  
-    Computes SHAP values for graph edges (connectome connections).
-
-### glass brain top 10 mean.py**  
-  Displays the top 10 most important edges (by mean SHAP) on a glass brain plot 
-  
-### glass brain top 10 mean left right inter.py**  
-  Represents top 10 SHAP edges into left, right, and interhemispheric categories in one glass brain plot.
+**SHAP edges.py**  Computes SHAP values for graph edges (connectome connections).
+**glass brain top 10 mean.py**  Displays the top 10 most important edges (by mean SHAP) on a glass brain plot 
+**glass brain top 10 mean left right inter.py**  Represents top 10 SHAP edges into left, right, and interhemispheric categories in one glass brain plot.
 
 
 
