@@ -1,4 +1,4 @@
-#ADNI DTI FMRI
+#ADNI DTI-FMRI pretraining
 
 #BEST 1
 
