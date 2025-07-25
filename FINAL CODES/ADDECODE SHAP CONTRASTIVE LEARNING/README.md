@@ -27,11 +27,17 @@ The SHAP-guided contrastive learning pipeline is organized into scripts, each co
 ### `7.2_contrative learning.py`
 - Trains a **contrastive embedding model** (2-layer MLP) using the triplets generated in step 7.1c .
 - Optimizes a contrastive loss (NT-Xent) to project SHAP vectors into a latent embedding space.
-- Saves the trained projection head for later embedding extraction.
+-  Obtain a **contrastive embedding for each subject** that:
+  - Encodes their relative position with respect to others in SHAP space.
+  - Preserves similarity relationships between explanatory profiles.
 
-### `7.3.1_UMAP visualization with stadard scaler.py`
-- Applies the trained SHAP encoder to all subjects.
-- Uses UMAP for dimensionality reduction and visualizes the 2D projection of SHAP embeddings.
-- Colors points by age, risk group, or other metadata for interpretation.
+### `7.5_model with shap embed.py`
+Adds shap embeddings to main addecode model
+
+### FOLDER Clustering
+- UMAP showing clusters
+- UMAP with clusteres colores by risk, genotype..
+- Hierachical clustering heatmap
+
 
 
