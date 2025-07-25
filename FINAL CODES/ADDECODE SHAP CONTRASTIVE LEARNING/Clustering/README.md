@@ -1,1 +1,3 @@
-
+- 7.4 UMAP showing clusters
+- 7.3.1 UMAP with clusteres colores by risk, genotype..
+- 7.6b Hierachical clustering heatmap
