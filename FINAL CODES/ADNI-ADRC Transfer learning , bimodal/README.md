@@ -1,4 +1,4 @@
-
+# Transfer learning from ADNI to ADRC, bimodal (DTI +fMRI)
 
 ## 1_ADNI Pretraining (Bimodal GATv2):
 Pretrains a Dual-GATv2 model on healthy ADNI subjects using DTI and fMRI connectomes, node features (FA, Volume), and global metadata.
