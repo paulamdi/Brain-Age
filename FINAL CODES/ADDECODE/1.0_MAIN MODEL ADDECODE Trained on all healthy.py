@@ -1,30 +1,35 @@
-#Saving a cvs with predictions
+###################################################################
+# ADDECODE - Preprocessing, Training and evaluation on all healthy
+###################################################################
 
-# Edges
-#th70
+# Preprocess connectomes , metadata, node features
+# Convert each subject into a pytorch graph object 
+# Trains a GATv2 model asiing 7 fold stratified CV - 10 repeats 
+# Evaluate model performance and save the model to predict on all risks
 
-# ADDECODE 
 
-    #K fold cross validation
-    #And then after already evaluating we train on all healthy subjects and save the model, to then predict on all risks on next script
 
-    # MULTI HEAD 1 for each group( metadata, graph metrics, pcas)
+#Preprocess connectomes -> Log(x+1) and Threshold
+
+# Metadata:  -> sex,genotype,systolc, diasstolic, clustering coeff, path lentgh 10 PCA (zscores)
     # Zscore normalizing global features (metadata, graph metrics, pcas)
     # Using the top 10 most age-correlated PCs, according to SPEARMAN PC trait Correlation (PCA enrichment)
     # top 10 zscored
+    # Using less metadata features(sex,genotype,systolc, diasstolic)​
     # Sex label encoded
-   
+    # (sex: Label encoded and one hot encoded (similar)​ )
+    # Using only clustering coeff and path lentgh as graph metrics​
+    # MULTI HEAD 1 for each group( metadata, graph metrics, pcas)
 
+#Node features -> FA,MD,Volume, clustering coefficient
+    # ADDED CLUSTERING COEF AS  A NODE FEATURE​
 
-    #4 gnn layers​
-    #Residual connections between 1 and 2,2 and 3, 3 and 4​
-    #Batch norm​
-    #Concat true, heads 8​
-    #Patience 40 ​
-    #Using less metadata features(sex,genotype,systolc, diasstolic)​
-    #sex: Label encoded and one hot encoded (similar)​
-    #Using only clustering coeff and path lentgh as graph metrics​
-    #ADDED CLUSTERING COEF AS  A NODE FEATURE​
+#MODEL
+    #4 GATv2 layers​
+    # Residual connections between 1 and 2,2 and 3, 3 and 4​
+    # Batch norm​
+    # Concat true, heads 8​
+    # Patience 40 ​
     
 #################  IMPORT NECESSARY LIBRARIES  ################
 
