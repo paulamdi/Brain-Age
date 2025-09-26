@@ -381,7 +381,7 @@ def threshold_connectome(matrix, percentile=100):
 # --- Apply threshold + log transform ---
 log_thresholded_connectomes = {}
 for subject, matrix in matched_connectomes.items():
-    thresholded_matrix = threshold_connectome(matrix, percentile=95)
+    thresholded_matrix = threshold_connectome(matrix, percentile=70)
     log_matrix = np.log1p(thresholded_matrix)
     log_thresholded_connectomes[subject] = pd.DataFrame(log_matrix, index=matrix.index, columns=matrix.columns)
 
